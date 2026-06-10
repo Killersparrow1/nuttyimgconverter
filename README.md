@@ -76,6 +76,14 @@ nautilus -q
 
 ## Showcase
 
+
+https://github.com/user-attachments/assets/01c27ce0-920c-4ff0-b0a6-8329cc5f3849
+
+
+
+https://github.com/user-attachments/assets/decef6e2-0b11-44c6-b7ed-907383ffbc8f
+
+
 <img width="501" height="386" alt="Screenshot From 2026-06-10 23-42-19" src="https://github.com/user-attachments/assets/57dcb233-1281-4559-baf3-0ba3632d86e1" />
 
 <img width="480" height="607" alt="Screenshot From 2026-06-10 23-42-09" src="https://github.com/user-attachments/assets/d3a0b96b-584b-49dd-ad85-81c0d2554afd" />
