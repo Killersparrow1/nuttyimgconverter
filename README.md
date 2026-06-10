@@ -1,54 +1,91 @@
+# Nuty Image Converter
 
-Nuty Image Converter — Super Simple Install
+A lightweight Nautilus (GNOME Files) extension that adds a **Convert** option to the right-click menu, allowing quick image format conversion directly from your file manager.
 
-What this does
+---
 
-A tiny Nautilus (GNOME) extension that adds a right-click "Convert" action to convert images.
-
-Prerequisites
+## Requirements
 
 - GNOME + Nautilus
 - Python 3
 
-Install (copy-paste each line)
+---
 
+## Installation
+
+Clone the repository:
+
+```bash
 git clone https://github.com/witherdotexe/nuttyimgconverter.git
+cd nuttyimgconverter
+```
 
-cd ~/nuttyimgconverter/
+Make the installer executable and run it:
 
+```bash
 chmod +x install.sh
-
 ./install.sh
+```
 
-If the installer asks for root, run:
+If root permissions are required:
+
+```bash
 sudo ./install.sh
+```
 
-Permissions note
-- Make the installer executable before running: chmod +x install.sh
+---
 
-Optional tools
-To install optional encoders (improve format support):
+## Optional Tools
 
+Install additional encoders for improved format support:
+
+```bash
 chmod +x install-tools.sh
-
 ./install-tools.sh
+```
 
-Uninstall (copy-paste)
+---
 
+## Uninstall
+
+```bash
 chmod +x uninstall.sh
-
 ./uninstall.sh
+```
 
-Restart Nautilus to apply changes
+---
 
+## Restart Nautilus
+
+After installing or uninstalling:
+
+```bash
 nautilus -q
+```
 
-Quick usage
-Open Nautilus, right-click an image, choose "Convert" and pick a format.
+---
 
-Showcase 
-___________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+## Usage
+
+1. Open Nautilus.
+2. Right-click an image.
+3. Select **Convert**.
+4. Choose the desired output format.
+
+---
+
+## Showcase
+
 <img width="501" height="386" alt="Screenshot From 2026-06-10 23-42-19" src="https://github.com/user-attachments/assets/57dcb233-1281-4559-baf3-0ba3632d86e1" />
+
 <img width="480" height="607" alt="Screenshot From 2026-06-10 23-42-09" src="https://github.com/user-attachments/assets/d3a0b96b-584b-49dd-ad85-81c0d2554afd" />
+
 <img width="421" height="106" alt="Screenshot From 2026-06-10 23-44-00" src="https://github.com/user-attachments/assets/4f3dd6a1-56e4-4625-9da0-e86e04b6d67c" />
+
 <img width="511" height="105" alt="Screenshot From 2026-06-10 23-43-35" src="https://github.com/user-attachments/assets/2bd4cb72-32d9-4b98-8c45-27c2b50256ae" />
+
+---
+
+## License
+
+MIT License
