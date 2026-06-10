@@ -49,13 +49,36 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             pass
 
     def _safe_output_path(self, path, ext):
+        # Return the final output path (same base name, new extension).
+        # Overwrite any existing output instead of creating copy files.
         base = os.path.splitext(path)[0]
-        output = f"{base}.{ext}"
-        i = 1
-        while os.path.exists(output):
-            output = f"{base}-converted-{i}.{ext}"
-            i += 1
-        return output
+        return f"{base}.{ext}"
+
+    def _finalize_conversion(self, src, tmp, final, title, message):
+        """Atomically move tmp -> final, remove source if it differs, and notify."""
+        try:
+            # Ensure tmp exists
+            if not os.path.exists(tmp):
+                self._notify("Conversion failed", f"{os.path.basename(src)}: temporary output missing")
+                return
+            # Atomically replace final file
+            os.replace(tmp, final)
+            # Remove original source if different from the final path
+            if os.path.abspath(final) != os.path.abspath(src):
+                try:
+                    os.remove(src)
+                except Exception:
+                    # Best-effort: ignore failures removing the original
+                    pass
+            self._notify(title, message)
+        except Exception as e:
+            # Cleanup temp file on failure
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+            self._notify("Conversion failed", f"{os.path.basename(src)}: {e}")
 
     def _convert_file(self, magick_bin, fileinfo, ext):
         path = fileinfo.get_location().get_path()
@@ -71,7 +94,8 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         if mime and not mime.startswith("image/"):
             return
 
-        output = self._safe_output_path(path, ext)
+        final_output = self._safe_output_path(path, ext)
+        tmp_output = final_output + ".tmp"
 
         # Skip converting when target format equals source format
         src_ext = os.path.splitext(path)[1].lower().lstrip('.')
@@ -95,16 +119,15 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         # PNG: disable compression
         if ext == 'png':
             cmd.extend(['-define', 'png:compression-level=0'])
-        cmd.append(output)
+        cmd.append(tmp_output)
 
         try:
             subprocess.run(
                 cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-            self._notify(
-                "Image Converted",
-                f"{os.path.basename(path)} → {os.path.basename(output)}",
-            )
+            # Atomically move tmp -> final and remove original
+            self._finalize_conversion(path, tmp_output, final_output, "Image Converted", f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+            return
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode(errors="ignore") if e.stderr else str(e)
 
@@ -112,9 +135,9 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             # AVIF -> avifenc
             if ext == 'avif' and shutil.which('avifenc'):
                 try:
-                    avif_cmd = ['avifenc', '--min', '0', '--max', '100', path, output]
+                    avif_cmd = ['avifenc', '--min', '0', '--max', '100', path, tmp_output]
                     subprocess.run(avif_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._notify('Image Converted (avifenc)', f"{os.path.basename(path)} → {os.path.basename(output)}")
+                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (avifenc)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
                     return
                 except subprocess.CalledProcessError as e2:
                     stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
@@ -125,9 +148,9 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             if ext == 'webp' and shutil.which('cwebp'):
                 try:
                     # lossless, highest quality
-                    cwebp_cmd = ['cwebp', '-lossless', '-q', '100', path, '-o', output]
+                    cwebp_cmd = ['cwebp', '-lossless', '-q', '100', path, '-o', tmp_output]
                     subprocess.run(cwebp_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._notify('Image Converted (cwebp)', f"{os.path.basename(path)} → {os.path.basename(output)}")
+                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (cwebp)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
                     return
                 except subprocess.CalledProcessError as e2:
                     stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
@@ -137,9 +160,9 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             # HEIC -> heif-enc (libheif)
             if ext == 'heic' and shutil.which('heif-enc'):
                 try:
-                    heif_cmd = ['heif-enc', path, output]
+                    heif_cmd = ['heif-enc', path, tmp_output]
                     subprocess.run(heif_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._notify('Image Converted (heif-enc)', f"{os.path.basename(path)} → {os.path.basename(output)}")
+                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (heif-enc)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
                     return
                 except subprocess.CalledProcessError as e2:
                     stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
@@ -151,14 +174,14 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
                 try:
                     ff_cmd = ['ffmpeg', '-y', '-i', path]
                     if ext in ('jpg', 'jpeg'):
-                        ff_cmd += ['-q:v', '1', output]
+                        ff_cmd += ['-q:v', '1', tmp_output]
                     elif ext == 'png':
-                        ff_cmd += ['-compression_level', '0', output]
+                        ff_cmd += ['-compression_level', '0', tmp_output]
                     else:
                         # generic ffmpeg fallback for other formats (webp/avif/heic)
-                        ff_cmd += [output]
+                        ff_cmd += [tmp_output]
                     subprocess.run(ff_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._notify('Image Converted (ffmpeg)', f"{os.path.basename(path)} → {os.path.basename(output)}")
+                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (ffmpeg)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
                     return
                 except subprocess.CalledProcessError as e2:
                     stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
