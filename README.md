@@ -34,14 +34,10 @@ nautilus -q
 Quick usage
 Open Nautilus, right-click an image, choose "Convert" and pick a format.
 
-Showcase (add your screenshots below)
-
+Showcase 
+___________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
 -- Showcase preview --
 
 ![](images/showcase-1.png)
 
 ![](images/showcase-2.png)
-
-(Replace the files above with your screenshots or add more images in images/.)
-
-Need help? Open an issue or edit this README to add clearer steps.
