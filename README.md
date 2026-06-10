@@ -14,7 +14,7 @@ Install (copy-paste each line)
 
 git clone https://github.com/witherdotexe/nuttyimgconverter.git
 
-cd /nuttyimgconverter
+cd ~/nuttyimgconverter/
 
 chmod +x install.sh
 
