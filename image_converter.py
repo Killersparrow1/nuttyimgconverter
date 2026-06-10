@@ -2,20 +2,102 @@ import gi
 
 gi.require_version("Nautilus", "4.1")
 gi.require_version("Notify", "0.7")
+gi.require_version("Gtk", "4.0")
 
 import os
 import shutil
 import subprocess
 import threading
+import time
 
-from gi.repository import GObject, Nautilus, Notify
+from gi.repository import GLib, GObject, Gtk, Nautilus, Notify
 
-# Initialize libnotify for user feedback
 try:
     Notify.init("ImageConverter")
 except Exception:
-    # If notifications aren't available, proceed silently
     pass
+
+
+class ProgressDialog(Gtk.ApplicationWindow):
+    """GTK progress dialog for image conversion."""
+
+    def __init__(self, filename, format_to):
+        super().__init__()
+        self.set_title(f"Converting {filename}")
+        self.set_default_size(450, 160)
+        self.set_deletable(False)
+        self.callback = None
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        file_label = Gtk.Label()
+        file_label.set_markup(f"<b>Converting:</b> {filename}")
+        file_label.set_halign(Gtk.Align.START)
+        vbox.append(file_label)
+
+        format_label = Gtk.Label()
+        format_label.set_markup(f"<b>To format:</b> {format_to.upper()}")
+        format_label.set_halign(Gtk.Align.START)
+        vbox.append(format_label)
+
+        self.progress_bar = Gtk.ProgressBar()
+        self.progress_bar.set_show_text(False)
+        self.progress_bar.pulse()
+        vbox.append(self.progress_bar)
+
+        self.status_label = Gtk.Label()
+        self.status_label.set_text("Converting... Please wait")
+        self.status_label.set_halign(Gtk.Align.START)
+        self.status_label.set_wrap(True)
+        vbox.append(self.status_label)
+
+        self.button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.button_box.set_halign(Gtk.Align.END)
+
+        self.keep_both_btn = Gtk.Button(label="Keep Both")
+        self.keep_both_btn.connect("clicked", self._on_keep_both)
+        self.button_box.append(self.keep_both_btn)
+
+        self.replace_btn = Gtk.Button(label="Replace Original")
+        self.replace_btn.connect("clicked", self._on_replace)
+        self.button_box.append(self.replace_btn)
+
+        self.button_box.set_visible(False)
+        vbox.append(self.button_box)
+
+        self.set_child(vbox)
+        self.present()
+
+        GLib.timeout_add(100, self._animate_progress)
+
+    def _animate_progress(self):
+        """Animate progress bar during conversion."""
+        if self.progress_bar and not self.button_box.get_visible():
+            self.progress_bar.pulse()
+            return True
+        return False
+
+    def _on_keep_both(self, button):
+        """User wants to keep both files."""
+        if self.callback:
+            self.callback("keep_both")
+        self.close()
+
+    def _on_replace(self, button):
+        """User wants to replace original."""
+        if self.callback:
+            self.callback("replace")
+        self.close()
+
+    def finish(self):
+        """Show completion and choice buttons."""
+        self.progress_bar.set_fraction(1.0)
+        self.status_label.set_text("Conversion complete! What would you like to do?")
+        self.button_box.set_visible(True)
 
 
 class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
@@ -27,16 +109,15 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         return None
 
     def _format_supported(self, magick_bin, ext):
-        """Return True if ImageMagick supports the given output format.
-
-        Checks the output of `magick -list format` for the format name. This
-        is a heuristic but works for common coders such as AVIF, WEBP, HEIC, PNG.
-        """
         try:
-            p = subprocess.run([magick_bin, "-list", "format"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            out = p.stdout.lower()
-            # look for lines starting with the format name or containing it
-            return ext.lower() in out
+            p = subprocess.run(
+                [magick_bin, "-list", "format"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return ext.lower() in p.stdout.lower()
         except Exception:
             return False
 
@@ -45,34 +126,49 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             n = Notify.Notification.new(title, message)
             n.show()
         except Exception:
-            # ignore notification failures
             pass
 
     def _safe_output_path(self, path, ext):
-        # Return the final output path (same base name, new extension).
-        # Overwrite any existing output instead of creating copy files.
         base = os.path.splitext(path)[0]
         return f"{base}.{ext}"
 
-    def _finalize_conversion(self, src, tmp, final, title, message):
-        """Atomically move tmp -> final, remove source if it differs, and notify."""
+    def _finalize_conversion(self, src, tmp, final, title, message, dialog=None):
+        """Move tmp to final, ask user about original file."""
         try:
-            # Ensure tmp exists
             if not os.path.exists(tmp):
-                self._notify("Conversion failed", f"{os.path.basename(src)}: temporary output missing")
+                self._notify(
+                    "Conversion failed",
+                    f"{os.path.basename(src)}: temporary output missing",
+                )
                 return
-            # Atomically replace final file
-            os.replace(tmp, final)
-            # Remove original source if different from the final path
-            if os.path.abspath(final) != os.path.abspath(src):
-                try:
-                    os.remove(src)
-                except Exception:
-                    # Best-effort: ignore failures removing the original
-                    pass
-            self._notify(title, message)
+
+            if dialog and os.path.abspath(final) != os.path.abspath(src):
+
+                def on_choice(choice):
+                    try:
+                        if choice == "replace":
+                            os.replace(tmp, final)
+                            try:
+                                os.remove(src)
+                            except:
+                                pass
+                            self._notify(title, message)
+                        elif choice == "keep_both":
+                            os.replace(tmp, final)
+                            self._notify(title, f"{message} (Original kept)")
+                    except Exception as e:
+                        self._notify("Error", f"Could not finalize: {e}")
+
+                dialog.callback = on_choice
+            else:
+                os.replace(tmp, final)
+                if os.path.abspath(final) != os.path.abspath(src):
+                    try:
+                        os.remove(src)
+                    except:
+                        pass
+                self._notify(title, message)
         except Exception as e:
-            # Cleanup temp file on failure
             try:
                 if os.path.exists(tmp):
                     os.remove(tmp)
@@ -80,12 +176,11 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
                 pass
             self._notify("Conversion failed", f"{os.path.basename(src)}: {e}")
 
-    def _convert_file(self, magick_bin, fileinfo, ext):
+    def _convert_file(self, magick_bin, fileinfo, ext, dialog=None):
         path = fileinfo.get_location().get_path()
         if not path:
             return
 
-        # Validate MIME type when available
         try:
             mime = fileinfo.get_mime_type()
         except Exception:
@@ -97,99 +192,164 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         final_output = self._safe_output_path(path, ext)
         tmp_output = final_output + ".tmp"
 
-        # Skip converting when target format equals source format
-        src_ext = os.path.splitext(path)[1].lower().lstrip('.')
-        if src_ext == 'jpeg':
-            src_ext = 'jpg'
+        src_ext = os.path.splitext(path)[1].lower().lstrip(".")
+        if src_ext == "jpeg":
+            src_ext = "jpg"
         if src_ext == ext:
-            # Warn user when attempting to convert to same format and skip
-            self._notify("Warning: Same format", f"{os.path.basename(path)} is already .{ext}; conversion skipped.")
+            self._notify(
+                "Warning: Same format",
+                f"{os.path.basename(path)} is already .{ext}; conversion skipped.",
+            )
+            if dialog:
+                GLib.idle_add(dialog.close)
             return
 
-        cmd = [magick_bin, path]
-        # Try to avoid compression where possible
-        if ext in ('jpg', 'jpeg'):
-            cmd.extend(['-quality', '100'])
-        elif ext == 'webp':
-            cmd.extend(['-quality', '100', '-define', 'webp:lossless=true'])
-        elif ext == 'avif':
-            cmd.extend(['-quality', '100'])
-        elif ext == 'heic':
-            cmd.extend(['-quality', '90'])
-        # PNG: disable compression
-        if ext == 'png':
-            cmd.extend(['-define', 'png:compression-level=0'])
+        if not dialog:
+            filename = os.path.basename(path)
+            dialog = ProgressDialog(filename, ext)
+
+        cmd = [magick_bin, path, "-strip"]
+        if ext in ("jpg", "jpeg"):
+            cmd.extend(["-quality", "75"])
+        elif ext == "webp":
+            cmd.extend(["-quality", "70", "-method", "6"])
+        elif ext == "avif":
+            cmd.extend(["-quality", "65"])
+        elif ext == "heic":
+            cmd.extend(["-quality", "75"])
+        if ext == "png":
+            cmd.extend(["-define", "png:compression-level=1"])
         cmd.append(tmp_output)
 
         try:
-            subprocess.run(
-                cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            # Atomically move tmp -> final and remove original
-            self._finalize_conversion(path, tmp_output, final_output, "Image Converted", f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+            process.wait()
+
+            if not os.path.exists(tmp_output):
+                raise subprocess.CalledProcessError(
+                    process.returncode, cmd, output="Output file not created"
+                )
+
+            GLib.idle_add(dialog.finish)
+            self._finalize_conversion(
+                path,
+                tmp_output,
+                final_output,
+                "Image Converted",
+                f"{os.path.basename(path)} → {os.path.basename(final_output)}",
+                dialog,
+            )
             return
         except subprocess.CalledProcessError as e:
-            stderr = e.stderr.decode(errors="ignore") if e.stderr else str(e)
-
-            # Try format-specific fallbacks, then a generic ffmpeg fallback
-            # AVIF -> avifenc
-            if ext == 'avif' and shutil.which('avifenc'):
+            if ext == "avif" and shutil.which("avifenc"):
                 try:
-                    avif_cmd = ['avifenc', '--min', '0', '--max', '100', path, tmp_output]
-                    subprocess.run(avif_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (avifenc)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+                    avif_cmd = [
+                        "avifenc",
+                        "--min",
+                        "0",
+                        "--max",
+                        "65",
+                        "-s",
+                        "10",
+                        path,
+                        tmp_output,
+                    ]
+                    subprocess.run(
+                        avif_cmd,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    GLib.idle_add(dialog.finish)
+                    self._finalize_conversion(
+                        path,
+                        tmp_output,
+                        final_output,
+                        "Image Converted (avifenc)",
+                        f"{os.path.basename(path)} → {os.path.basename(final_output)}",
+                        dialog,
+                    )
                     return
-                except subprocess.CalledProcessError as e2:
-                    stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
-                    self._notify('Conversion failed', f"{os.path.basename(path)}: {stderr2}")
-                    return
+                except subprocess.CalledProcessError:
+                    pass
 
-            # WebP -> cwebp
-            if ext == 'webp' and shutil.which('cwebp'):
+            if ext == "webp" and shutil.which("cwebp"):
                 try:
-                    # lossless, highest quality
-                    cwebp_cmd = ['cwebp', '-lossless', '-q', '100', path, '-o', tmp_output]
-                    subprocess.run(cwebp_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (cwebp)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+                    cwebp_cmd = ["cwebp", "-q", "70", "-m", "6", path, "-o", tmp_output]
+                    subprocess.run(
+                        cwebp_cmd,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    GLib.idle_add(dialog.finish)
+                    self._finalize_conversion(
+                        path,
+                        tmp_output,
+                        final_output,
+                        "Image Converted (cwebp)",
+                        f"{os.path.basename(path)} → {os.path.basename(final_output)}",
+                        dialog,
+                    )
                     return
-                except subprocess.CalledProcessError as e2:
-                    stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
-                    self._notify('Conversion failed', f"{os.path.basename(path)}: {stderr2}")
-                    return
+                except subprocess.CalledProcessError:
+                    pass
 
-            # HEIC -> heif-enc (libheif)
-            if ext == 'heic' and shutil.which('heif-enc'):
+            if ext == "heic" and shutil.which("heif-enc"):
                 try:
-                    heif_cmd = ['heif-enc', path, tmp_output]
-                    subprocess.run(heif_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (heif-enc)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+                    heif_cmd = ["heif-enc", path, tmp_output]
+                    subprocess.run(
+                        heif_cmd,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    GLib.idle_add(dialog.finish)
+                    self._finalize_conversion(
+                        path,
+                        tmp_output,
+                        final_output,
+                        "Image Converted (heif-enc)",
+                        f"{os.path.basename(path)} → {os.path.basename(final_output)}",
+                        dialog,
+                    )
                     return
-                except subprocess.CalledProcessError as e2:
-                    stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
-                    self._notify('Conversion failed', f"{os.path.basename(path)}: {stderr2}")
-                    return
+                except subprocess.CalledProcessError:
+                    pass
 
-            # JPG/PNG fallback via ffmpeg
-            if shutil.which('ffmpeg'):
+            if shutil.which("ffmpeg"):
                 try:
-                    ff_cmd = ['ffmpeg', '-y', '-i', path]
-                    if ext in ('jpg', 'jpeg'):
-                        ff_cmd += ['-q:v', '1', tmp_output]
-                    elif ext == 'png':
-                        ff_cmd += ['-compression_level', '0', tmp_output]
+                    ff_cmd = ["ffmpeg", "-y", "-i", path]
+                    if ext in ("jpg", "jpeg"):
+                        ff_cmd += ["-q:v", "1", tmp_output]
+                    elif ext == "png":
+                        ff_cmd += ["-compression_level", "0", tmp_output]
                     else:
-                        # generic ffmpeg fallback for other formats (webp/avif/heic)
                         ff_cmd += [tmp_output]
-                    subprocess.run(ff_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    self._finalize_conversion(path, tmp_output, final_output, 'Image Converted (ffmpeg)', f"{os.path.basename(path)} → {os.path.basename(final_output)}")
+                    subprocess.run(
+                        ff_cmd,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    GLib.idle_add(dialog.finish)
+                    self._finalize_conversion(
+                        path,
+                        tmp_output,
+                        final_output,
+                        "Image Converted (ffmpeg)",
+                        f"{os.path.basename(path)} → {os.path.basename(final_output)}",
+                        dialog,
+                    )
                     return
-                except subprocess.CalledProcessError as e2:
-                    stderr2 = e2.stderr.decode(errors="ignore") if e2.stderr else str(e2)
-                    self._notify('Conversion failed', f"{os.path.basename(path)}: {stderr2}")
-                    return
+                except subprocess.CalledProcessError:
+                    pass
 
-            # No fallback succeeded
-            self._notify("Conversion failed", f"{os.path.basename(path)}: {stderr}")
+            self._notify(
+                "Conversion failed", f"{os.path.basename(path)}: conversion tool error"
+            )
         except Exception as e:
             self._notify("Conversion failed", f"{os.path.basename(path)}: {e}")
 
@@ -198,37 +358,51 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         if not magick_bin:
             self._notify(
                 "ImageMagick Not Found",
-                "Please install ImageMagick (magick or convert) to use this extension.",
+                "Please install ImageMagick to use this extension.",
             )
             return
 
-        # Check that the installed ImageMagick supports the requested format
         if not self._format_supported(magick_bin, ext):
-            self._notify("Format not supported", f"ImageMagick at {magick_bin} does not support .{ext} output.")
+            self._notify(
+                "Format not supported", f"ImageMagick does not support .{ext} output."
+            )
             return
 
-        # Run each conversion in a background thread to avoid blocking Nautilus
         for fileinfo in files:
+            path = fileinfo.get_location().get_path()
+            if path:
+                filename = os.path.basename(path)
+                dialog = ProgressDialog(filename, ext)
+            else:
+                dialog = None
+
             t = threading.Thread(
-                target=self._convert_file, args=(magick_bin, fileinfo, ext), daemon=True
+                target=self._convert_file,
+                args=(magick_bin, fileinfo, ext, dialog),
+                daemon=True,
             )
             t.start()
 
     def _list_supported_formats_text(self, magick_bin):
         try:
-            p = subprocess.run([magick_bin, "-list", "format"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            p = subprocess.run(
+                [magick_bin, "-list", "format"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             return p.stdout.lower()
         except Exception:
             return ""
 
     def _aliases_for(self, ext):
-        # Some ImageMagick listings use alternate names
         return {
-            'png': ['png'],
-            'jpg': ['jpg', 'jpeg'],
-            'heic': ['heic', 'heif'],
-            'webp': ['webp'],
-            'avif': ['avif'],
+            "png": ["png"],
+            "jpg": ["jpg", "jpeg"],
+            "heic": ["heic", "heif"],
+            "webp": ["webp"],
+            "avif": ["avif"],
         }.get(ext, [ext])
 
     def _get_supported_output_formats(self, magick_bin, desired_exts):
@@ -237,8 +411,7 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         if not text:
             return supported
         for ext in desired_exts:
-            aliases = self._aliases_for(ext)
-            for a in aliases:
+            for a in self._aliases_for(ext):
                 if a in text:
                     supported.append(ext)
                     break
@@ -257,11 +430,21 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
             path = None
         if not path:
             return False
-        ext = os.path.splitext(path)[1].lower().lstrip('.')
-        return ext in {"png", "jpg", "jpeg", "gif", "bmp", "webp", "avif", "heic", "tiff", "svg"}
+        ext = os.path.splitext(path)[1].lower().lstrip(".")
+        return ext in {
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "bmp",
+            "webp",
+            "avif",
+            "heic",
+            "tiff",
+            "svg",
+        }
 
     def get_file_items(self, *args):
-        # Nautilus may call get_file_items(window, files) or get_file_items(files)
         files = None
         if len(args) == 1:
             files = args[0]
@@ -271,7 +454,6 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         if not files:
             return []
 
-        # Only show the menu when the selection contains only image files
         try:
             all_images = all(self._is_image_file(f) for f in files)
         except Exception:
@@ -283,19 +465,19 @@ class ImageConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         desired = ["png", "jpg", "heic", "webp", "avif"]
         magick_bin = self._find_magick()
         if not magick_bin:
-            # No ImageMagick available; hide the menu
             return []
 
         supported = self._get_supported_output_formats(magick_bin, desired)
         if not supported:
-            # No supported output formats on this machine
             return []
 
         parent = Nautilus.MenuItem(name="ImageConverter::Main", label="Convert Image")
         submenu = Nautilus.Menu()
 
         for ext in supported:
-            item = Nautilus.MenuItem(name=f"ImageConverter::{ext}", label=f"To {ext.upper()}")
+            item = Nautilus.MenuItem(
+                name=f"ImageConverter::{ext}", label=f"To {ext.upper()}"
+            )
             item.connect("activate", self.convert, files, ext)
             submenu.append_item(item)
 
