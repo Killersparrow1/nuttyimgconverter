@@ -85,7 +85,6 @@ nautilus -q
 <img width="511" height="105" alt="Screenshot From 2026-06-10 23-43-35" src="https://github.com/user-attachments/assets/2bd4cb72-32d9-4b98-8c45-27c2b50256ae" />
 
 ---
-
 ## License
 
-MIT License
+This project is licensed under the GNU General Public License (GPL). See the LICENSE file for details.
