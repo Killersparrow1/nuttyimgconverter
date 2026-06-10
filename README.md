@@ -8,6 +8,7 @@ Prerequisites
 - Python 3
 
 Install (copy-paste each line)
+
 cd ~/Projects/nutyimgconvertor-main
 chmod +x install.sh
 ./install.sh
@@ -17,7 +18,6 @@ sudo ./install.sh
 
 Permissions note
 - Make the installer executable before running: chmod +x install.sh
-- If you ever want to remove the execute bit: chmod -x install.sh
 
 Optional tools
 To install optional encoders (improve format support):
@@ -25,6 +25,7 @@ chmod +x install-tools.sh
 ./install-tools.sh
 
 Uninstall (copy-paste)
+
 chmod +x uninstall.sh
 ./uninstall.sh
 
