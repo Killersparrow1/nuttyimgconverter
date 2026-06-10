@@ -1,32 +1,47 @@
-# nutyimgconvertor
-this is a image format covertor without or minimal compression for gnome nautilus that adds menu when left clicked on (vibe coded may have bugs)
-_________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
-[README_install.md](https://github.com/user-attachments/files/28794820/README_install.md)
-Installation
+Nuty Image Converter — Super Simple Install
 
-1. Place image_converter.py and these scripts in the same directory.
-2. Run ./install.sh to copy the extension into ~/.local/share/nautilus-python/extensions, install runtime dependencies and restart Nautilus.
-3. (Optional) Run ./install-tools.sh to install optional encoder tools (avifenc, cwebp, heif-enc, ffmpeg) for better fallback coverage.
+What this does
+A tiny Nautilus (GNOME) extension that adds a right-click "Convert" action to convert images.
 
-System dependencies
+Prerequisites
+- GNOME + Nautilus
+- Python 3
 
-The installer attempts to install the packages required to run Nautilus Python extensions:
-- Debian/Ubuntu: python3-nautilus, python3-gi, gir1.2-nautilus-3.0, gir1.2-notify-0.7
-- Fedora: nautilus-python, python3-gobject, libnotify
-- Arch: python-nautilus, python-gobject, libnotify
-- openSUSE: python3-nautilus, python3-gobject, libnotify-gtk3
+Install (copy-paste each line)
+cd ~/Projects/nutyimgconvertor-main
+chmod +x install.sh
+./install.sh
 
-If the automatic install fails, install the appropriate packages for your distribution manually.
+If the installer asks for root, run:
+sudo ./install.sh
 
-Uninstallation
+Permissions note
+- Make the installer executable before running: chmod +x install.sh
+- If you ever want to remove the execute bit: chmod -x install.sh
 
-Run ./uninstall.sh or remove ~/.local/share/nautilus-python/extensions/image_converter.py and restart Nautilus.
+Optional tools
+To install optional encoders (improve format support):
+chmod +x install-tools.sh
+./install-tools.sh
 
-Compatibility
+Uninstall (copy-paste)
+chmod +x uninstall.sh
+./uninstall.sh
 
-The installer patches the extension to try Nautilus 4.1 then 4.0. The extension detects available ImageMagick output formats and shows only supported targets. Fallback encoders are used when ImageMagick fails.
+Restart Nautilus to apply changes
+nautilus -q
 
-Notes
+Quick usage
+Open Nautilus, right-click an image, choose "Convert" and pick a format.
 
-- The script may require sudo to install system packages.
-- Package names and availability vary between distributions; consult your distro docs if a package is missing.
+Showcase (add your screenshots below)
+
+-- Showcase preview --
+
+![](images/showcase-1.png)
+
+![](images/showcase-2.png)
+
+(Replace the files above with your screenshots or add more images in images/.)
+
+Need help? Open an issue or edit this README to add clearer steps.
