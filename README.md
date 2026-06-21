@@ -28,7 +28,7 @@ A lightweight Nautilus (GNOME Files) extension that adds **Convert Image** and *
 Clone the repository:
 
 ```bash
-git clone https://github.com/Killersparrow1/nuttyimgconverter.git
+git clone https://github.com/witherdotexe/nuttyimgconverter.git
 cd nuttyimgconverter
 ```
 
