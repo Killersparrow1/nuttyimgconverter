@@ -1,6 +1,17 @@
 # Nuty Image Converter
 
-A lightweight Nautilus (GNOME Files) extension that adds a **Convert** option to the right-click menu, allowing quick image format conversion directly from your file manager.
+A lightweight Nautilus (GNOME Files) extension that adds **Convert Image** and **Compress Image** options to the right-click menu, allowing quick image format conversion and compression directly from your file manager.
+
+---
+
+## Features
+
+- **Convert Image** — right-click any image and convert to common formats (PNG, JPG, WebP, AVIF, HEIC, GIF, TIFF, BMP, ICO, JXL, PSD, PDF)
+- **Compress Image** — re-encode images with quality presets (Lossless, High Quality 85%, Medium Quality 65%, Low Quality 35%)
+- **Smart format detection** — available formats are dynamically discovered from ImageMagick; only supported formats appear in the menu
+- **Fallback encoders** — if ImageMagick fails, falls back to avifenc, cwebp, heif-enc, or ffmpeg automatically
+- **Keep Both / Replace Original** — dialog after conversion lets you choose whether to keep the original file
+- **Progress dialog** — shows conversion progress with a pulse bar
 
 ---
 
@@ -8,6 +19,7 @@ A lightweight Nautilus (GNOME Files) extension that adds a **Convert** option to
 
 - GNOME + Nautilus
 - Python 3
+- ImageMagick (`magick` or `convert`)
 
 ---
 
@@ -16,7 +28,7 @@ A lightweight Nautilus (GNOME Files) extension that adds a **Convert** option to
 Clone the repository:
 
 ```bash
-git clone https://github.com/witherdotexe/nuttyimgconverter.git
+git clone https://github.com/Killersparrow1/nuttyimgconverter.git
 cd nuttyimgconverter
 ```
 
@@ -68,9 +80,28 @@ nautilus -q
 ## Usage
 
 1. Open Nautilus.
-2. Right-click an image.
-3. Select **Convert**.
-4. Choose the desired output format.
+2. Right-click an image file.
+3. Select **Convert Image** and pick a target format, or **Compress Image** and pick a quality preset.
+4. After conversion, choose **Keep Both** or **Replace Original**.
+
+---
+
+## Recent Changes
+
+### Added
+- **Compress Image** submenu with 4 quality presets (Lossless, High 85%, Medium 65%, Low 35%)
+- Dynamic format discovery — formats detected from ImageMagick at runtime instead of hardcoded list
+- Support for 13 common output formats: PNG, JPG, WebP, AVIF, HEIC, GIF, TIFF, BMP, ICO, JXL, PSD, PDF
+- Lossy PNG compression via color palette reduction (256/128/64 colors) for real file size savings
+- Fallback encoder detection — AVIF/HEIC/WebP appear in menu if standalone tools are installed
+- Return code validation on ImageMagick commands to catch silent failures
+- Explicit `format:filename` syntax when calling ImageMagick to prevent format guessing errors
+- Expanded input format recognition (PNG, JPG, GIF, BMP, WebP, AVIF, HEIC/HEIF, TIFF, SVG, ICO, CUR, PSD, XCF, TGA, JP2, JXL, EXR, HDR, PCX, PNM, XBM, XPM, WBMP, QOI, DDS, RAS, SGI, EPS, PDF, PS, PICT, FITS, MNG, DPX, CIN, XWD, DCM)
+
+### Fixed
+- `install.sh` and `install-tools.sh` no longer crash with "ID_LIKE: unbound variable" on distributions where `/etc/os-release` omits `ID_LIKE`
+- Temp files now use the correct output extension (e.g., `photo_tmp.jpg` instead of `photo.jpg.tmp`), fixing format detection by fallback encoders
+- Same-format detection only canonicalizes input extension (e.g., `.jpeg` → `.jpg`) without blocking valid conversions
 
 ---
 
