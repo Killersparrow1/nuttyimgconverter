@@ -86,24 +86,6 @@ nautilus -q
 
 ---
 
-## Recent Changes
-
-### Added
-- **Compress Image** submenu with 4 quality presets (Lossless, High 85%, Medium 65%, Low 35%)
-- Dynamic format discovery — formats detected from ImageMagick at runtime instead of hardcoded list
-- Support for 13 common output formats: PNG, JPG, WebP, AVIF, HEIC, GIF, TIFF, BMP, ICO, JXL, PSD, PDF
-- Lossy PNG compression via color palette reduction (256/128/64 colors) for real file size savings
-- Fallback encoder detection — AVIF/HEIC/WebP appear in menu if standalone tools are installed
-- Return code validation on ImageMagick commands to catch silent failures
-- Explicit `format:filename` syntax when calling ImageMagick to prevent format guessing errors
-
-### Fixed
-- `install.sh` and `install-tools.sh` no longer crash with "ID_LIKE: unbound variable" on distributions where `/etc/os-release` omits `ID_LIKE`
-- Temp files now use the correct output extension (e.g., `photo_tmp.jpg` instead of `photo.jpg.tmp`), fixing format detection by fallback encoders
-- Same-format detection only canonicalizes input extension (e.g., `.jpeg` → `.jpg`) without blocking valid conversions
-
----
-
 ## Showcase
 
 
@@ -117,8 +99,26 @@ https://github.com/user-attachments/assets/565e005e-f1cc-4bf5-87f1-d7434d736ff5
 <img width="421" height="106" alt="Screenshot From 2026-06-10 23-44-00" src="https://github.com/user-attachments/assets/4f3dd6a1-56e4-4625-9da0-e86e04b6d67c" />
 
 <img width="511" height="105" alt="Screenshot From 2026-06-10 23-43-35" src="https://github.com/user-attachments/assets/2bd4cb72-32d9-4b98-8c45-27c2b50256ae" />
+---
+
+## Changelog
+
+### Improvements in this fork
+- Added **Compress Image** submenu with 4 quality presets (Lossless, High 85%, Medium 65%, Low 35%)
+- Made format detection dynamic — queries ImageMagick at runtime instead of a hardcoded list
+- Expanded output formats to 13 common ones (PNG, JPG, WebP, AVIF, HEIC, GIF, TIFF, BMP, ICO, JXL, PSD, PDF)
+- Added lossy PNG compression via color palette reduction for real file size savings
+- AVIF/HEIC/WebP now appear in menu if standalone tools (avifenc, heif-enc, cwebp) are installed
+- ImageMagick's `format:` prefix is now used explicitly to prevent format guessing errors
+- Return code is now validated after ImageMagick runs to catch silent failures
+
+### Bugs fixed
+- `install.sh` and `install-tools.sh` no longer crash on distros where `/etc/os-release` omits `ID_LIKE`
+- Temp files now use the correct extension (e.g., `photo_tmp.jpg` instead of `photo.jpg.tmp`) so fallback encoders detect the format properly
+- Same-format check now canonicalizes input extension without blocking valid conversions
 
 ---
+
 ## License
 
 This project is licensed under the GNU General Public License (GPL). See the LICENSE file for details.
