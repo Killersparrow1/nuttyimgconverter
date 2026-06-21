@@ -96,7 +96,6 @@ nautilus -q
 - Fallback encoder detection — AVIF/HEIC/WebP appear in menu if standalone tools are installed
 - Return code validation on ImageMagick commands to catch silent failures
 - Explicit `format:filename` syntax when calling ImageMagick to prevent format guessing errors
-- Expanded input format recognition (PNG, JPG, GIF, BMP, WebP, AVIF, HEIC/HEIF, TIFF, SVG, ICO, CUR, PSD, XCF, TGA, JP2, JXL, EXR, HDR, PCX, PNM, XBM, XPM, WBMP, QOI, DDS, RAS, SGI, EPS, PDF, PS, PICT, FITS, MNG, DPX, CIN, XWD, DCM)
 
 ### Fixed
 - `install.sh` and `install-tools.sh` no longer crash with "ID_LIKE: unbound variable" on distributions where `/etc/os-release` omits `ID_LIKE`
